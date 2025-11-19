@@ -76,6 +76,6 @@ Bias mitigation was performed on the KNN model in hopes of reducing disparity be
 - Several workplace variables strongly correlate with treatment-seeking
 - The Decision Tree model generally performed better than the SVM and KNN models
 - Bias mitigation through threshold adjustments is effective
-- Mental health in tech is influenced by both personal and workplace factors, with them all affecting outcomes in some way
+- Mental health in tech is influenced by both personal and workplace factors, with all affecting outcomes in some way
 
 Overall, machine learning models can help identify mental-health risk patterns among tech workers (and people in general), allowing companies to learn from them and implement policies for better care and intervention. It is also important to ensure fairness across groups for ethical and effective real-world use.
