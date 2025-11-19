@@ -1,0 +1,365 @@
+## Mental Health Risk In Tech Prediction Final Project
+
+Rheymar Devera, Animesh Bose & Abeezar Babuji
+
+# Data Preprocessing
+
+```{r}
+# load required libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(corrplot)
+library(pROC)
+library(questionr)
+library(fairmodels)
+library(DALEX)
+
+# load the dataset
+df <- read_csv("survey.csv")
+```
+
+```{r}
+# inspect the structure and summary statistics
+dim(df)
+summary(df)
+
+# check for any missing values
+colSums(is.na(df))
+
+# drop irrelevant columns
+df <- select(df, -Timestamp, -state, -comments)
+```
+
+```{r}
+# check country column if its standardized
+unique(df$Country)
+```
+
+```{r}
+# check age column for strange values
+table(df$Age)
+
+# check if there's any missing age values
+sum(is.na(df$Age))
+
+# fix age column
+df <- filter(df, Age >= 18 & Age <= 100)
+table(df$Age)
+```
+
+```{r}
+# inspect gender column
+unique(df$Gender)
+
+# convert all to lowercase for consistency
+df$Gender <- tolower(df$Gender)
+
+# standardize categories
+df <- df %>%
+  mutate(
+    Gender = case_when(
+      grepl("^(male|m|man|cis ?male|ms|malr|maile)$", Gender) ~ "Male",
+      grepl("^(female|f|woman|cis ?female|femail)$", Gender) ~ "Female",
+      grepl("non|trans|gender|fluid|queer|androgyne|agender", Gender) ~ "Non-binary",
+      is.na(Gender) ~ "Prfer Not to Say",
+      TRUE ~ "Prefer not to Say"
+    )
+  )
+
+# check column again
+unique(df$Gender)
+```
+
+```{r}
+# clean work_interfere and self_employed NA values
+df <- df %>%
+  mutate(
+    work_interfere = ifelse(is.na(work_interfere), "Don't Know", work_interfere),
+    self_employed  = ifelse(is.na(self_employed), "No", self_employed)
+  )
+
+# check work
+colSums(is.na(df))
+```
+
+```{r}
+# factor categorical variables so that models can use them
+df <- df %>%
+  mutate(
+    Gender = factor(Gender, levels = c("Male", "Female", "Non-binary", "Other", "Prefer not to Say")),
+
+    self_employed = factor(self_employed, levels = c("Yes", "No", "Unknown")),
+
+    treatment = factor(treatment, levels = c("No", "Yes")),
+
+    work_interfere = factor(work_interfere,
+                            levels = c("Don't Know","Never", "Rarely", "Sometimes", "Often"),
+                            ordered = TRUE),
+
+    remote_work = factor(remote_work, levels = c("Yes", "No")),
+
+    tech_company = factor(tech_company, levels = c("Yes", "No")),
+
+    benefits = factor(benefits, levels = c("Yes", "No", "Don't know")),
+
+    care_options = factor(care_options, levels = c("Yes", "No", "Not sure")),
+
+    wellness_program = factor(wellness_program, levels = c("Yes", "No", "Don't know")),
+
+    seek_help = factor(seek_help, levels = c("Yes", "No", "Don't know")),
+
+    anonymity = factor(anonymity, levels = c("Yes", "No", "Don't know")),
+
+    leave = factor(leave,
+                   levels = c("Very difficult", "Somewhat difficult", "Don't know",
+                              "Somewhat easy", "Very easy"),
+                   ordered = TRUE),
+    
+    mental_health_consequence = factor(mental_health_consequence, levels = c("Yes", "No", "Maybe")),
+    
+    phys_health_consequence   = factor(phys_health_consequence, levels = c("Yes", "No", "Maybe")),
+
+    coworkers   = factor(coworkers, levels = c("Yes", "No", "Some of them")),
+    
+    supervisor  = factor(supervisor, levels = c("Yes", "No", "Some of them")),
+
+    mental_health_interview = factor(mental_health_interview, levels = c("Yes", "No", "Maybe")),
+    
+    phys_health_interview   = factor(phys_health_interview, levels = c("Yes", "No", "Maybe")),
+
+    mental_vs_physical = factor(mental_vs_physical, levels = c("Yes", "No", "Don't know")),
+
+    obs_consequence = factor(obs_consequence, levels = c("Yes", "No")),
+    
+    Country = factor(Country)
+  )
+
+```
+
+# Data Visualization
+
+```{r}
+# stacked bar plot to show how many people reported work interference and what proportion actually seeked treatment
+ggplot(data = df %>% filter(!is.na(work_interfere))) + 
+  aes(x = work_interfere, fill = treatment) +
+  geom_bar(position = "fill") +
+  labs(title = "Work Interference vs Treatment", x= "Work Interference", y = "Proportion") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# stacked bar chart comparing remote work and the proportion who recieved treatment
+ggplot(data = df) + aes(x = remote_work, fill = treatment) +
+  geom_bar(position = "fill") +
+  labs(title = "Remote Work vs Treatment", x= "Remote Work (Yes/No)", y = "Proportion") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# box plot comparing spread of age and who said yes or no to recieving treatment
+ggplot(data = df) + aes(x = treatment, y = Age) +
+  geom_boxplot() + labs(title = "Age Group vs Treatment ", x= "Treatment (Yes/No)", y = "Age") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+# Model Building
+
+```{r}
+# Train three classification modes:
+# 1. Decision Tree
+# 2. Support Vector Machine
+# 3. K-Nearest Neighbors
+# target variable is df$treatment
+
+set.seed(123)
+
+# 75/25 train/test split
+train_index <- createDataPartition(df$treatment, p = 0.75, list = FALSE)
+
+train <- df[train_index, ]
+test <- df[-train_index, ]
+
+
+# 5 fold cross validation
+ctrl <- trainControl(method = "cv", number = 5,
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+
+# Decision Tree
+model_tree <- train(treatment ~ ., data = train,
+                    method = "rpart",
+                    trControl = ctrl,
+                    metric = "ROC")
+
+
+# Support Vector Machine
+model_svm <- train(treatment ~ ., data = train,
+                   method = "svmRadial",
+                   trControl = ctrl,
+                   metric = "ROC")
+
+# K-Nearest Neighbors
+model_knn <- train(treatment ~ ., data = train,
+                   method = "kknn",
+                   trControl = ctrl,
+                   metric = "ROC")
+
+```
+
+# Cross-Validation Model Evaluation
+
+```{r}
+results <- resamples(list(DecisionTree = model_tree, SVM = model_svm, kNN = model_knn))
+summary(results)
+bwplot(results, metric = "ROC")
+bwplot(results, metric = "Sens")
+bwplot(results, metric = "Spec")
+```
+
+# Fairness and Bias Evaluation
+
+```{r}
+y_numeric <- ifelse(test$treatment == "Yes", 1, 0)
+
+# Decision Tree Explainer
+explainer_tree <- explain(
+  model = model_tree,
+  data = test %>% select(-treatment),
+  y = y_numeric,
+  label = "Decision Tree"
+)
+
+# SVM Explainer
+explainer_svm <- explain(
+  model = model_svm,
+  data = test %>% select(-treatment),
+  y = y_numeric,
+  label = "SVM"
+)
+
+# KNN Explainer
+explainer_knn <- explain(
+  model = model_knn,
+  data = test %>% select(-treatment),
+  y = y_numeric,
+  label = "KNN"
+)
+
+
+# AgeGroup as a factor 
+test$AgeGroup <- factor(ifelse(test$Age >= 30, "Older", "Younger"))
+
+
+# Fairness Check for Decision Tree
+fairness_object_tree <- fairness_check(
+  explainer_tree,
+  protected = test$AgeGroup,
+  privileged = "Older"
+)
+
+# Fairness Check for SVM
+fairness_object_svm <- fairness_check(
+  explainer_svm,
+  protected = test$AgeGroup,
+  privileged = "Older"
+)
+
+# Fairness Check for KNN
+
+fairness_object_knn <- fairness_check(
+  explainer_knn,
+  protected = test$AgeGroup,
+  privileged = "Older"
+)
+
+
+# Plotting results
+plot(fairness_object_tree)
+plot(fairness_object_svm)
+plot(fairness_object_knn)
+
+# Printing results
+print(fairness_object_tree)
+print(fairness_object_svm)
+print(fairness_object_knn)
+```
+
+# Bias Mitigation Steps - Threshold Adjustments
+
+```{r}
+# Performing Threshold Adjustments to bring Predictive Equality & Statistical Parity Ratio closer to 1 for KNN Model
+
+y_numeric <- ifelse(test$treatment == "Yes", 1, 0)
+
+predict_proba <- function(model, data) {
+  predict(model, newdata = data, type = "prob")[, "Yes"]
+}
+
+
+explainer_knn_probs <- explain(
+  model = model_knn,
+  data = test %>% select(-treatment),
+  y = y_numeric,
+  predict_function = predict_proba,
+  label = "KNN"
+)
+
+# Any other cutoff's cause fairness metrics to fail
+cutoffs <- list("Younger" = 0.4, "Older" = 0.5)
+
+fairness_object__knn_thresholded <- fairness_check(
+  explainer_knn_probs,
+  protected = test$AgeGroup,
+  privileged = "Older",
+  cutoff = cutoffs
+)
+
+plot(fairness_object__knn_thresholded)
+print(fairness_object__knn_thresholded)
+```
+
+# Test Set Model Evaluation
+
+```{r}
+eval_metrics <- function(model, test_data) {
+  
+  probs <- predict(model, newdata = test_data, type = "prob")
+  
+  preds <- predict(model, newdata = test_data)
+  
+  auc_val <- as.numeric(roc(response = test_data$treatment, predictor = probs$Yes)$auc)
+  
+  cm <- confusionMatrix(preds, test_data$treatment, positive = "Yes")
+  
+  tibble(
+    AUC = auc_val,                                  # Model's ability to rank positive cases higher
+    Accuracy = cm$overall["Accuracy"],              # Overall % of correct predictions
+    Sensitivity = cm$byClass["Sensitivity"],        # True Positive Rate (Recall)
+    Specificity = cm$byClass["Specificity"]         # True Negative Rate
+  )
+}
+
+models <- list(Tree = model_tree, SVM = model_svm, kNN = model_knn)
+
+results_list <- lapply(models, eval_metrics, test_data = test)
+
+results_df <- bind_rows(results_list, .id = "Model") %>%
+  pivot_longer(cols = -Model, names_to = "Metric", values_to = "Value")
+
+head(results_df)
+
+
+ggplot(results_df, aes(x = Metric, y = Value, fill = Model)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = round(Value, 3)),
+            position = position_dodge(width = 0.9),
+            vjust = -0.3, size = 3) +
+  labs(title = "Model Performance on Test Set",
+       y = "Score",
+       x = "Metric") +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
