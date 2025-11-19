@@ -1,7 +1,5 @@
 # Mental Health Risk in Tech: Predictive Modeling and Fairness Analysis
-By Rheymar Devera, Animesh Bose & Abeezar Babuji
-
-University of Maryland, INST452
+By Rheymar Devera
 
 ## Project Overview
 This project analyzes mental-health risk factors in the tech industry using survey data from [Open Sourcing Mental Health [OSMH](https://osmhhelp.org/research.html). Here, we build machine-learning models to predict whether an individual is likely to seek mental-health treatment, to explore predictive performance, fairness across age groups, and bias mitigation techniques. This allows workplaces to understand mental-health risks and how different workplace factors affect well-being, adjusting policies for better awareness and accessibility to treatment.
