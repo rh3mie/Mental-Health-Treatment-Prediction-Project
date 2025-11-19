@@ -1,6 +1,6 @@
-## Mental Health Risk In Tech Prediction Final Project
+## Mental Health Risk In Tech Prediction Project
 
-Rheymar Devera, Animesh Bose & Abeezar Babuji
+Rheymar Devera
 
 # Data Preprocessing
 
