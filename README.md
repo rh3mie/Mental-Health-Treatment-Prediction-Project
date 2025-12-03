@@ -2,7 +2,7 @@
 By Rheymar Devera
 
 ## Project Overview
-This project analyzes mental-health risk factors in the tech industry using survey data from Open Sourcing Mental Health ([OSMH](https://osmhhelp.org/research.html)). Here, I built machine-learning models to predict whether an individual is likely to seek mental-health treatment, to explore predictive performance, fairness across age groups, and bias mitigation techniques. This allows workplaces to understand mental-health risks and how different workplace factors affect well-being, adjusting policies for better awareness and accessibility to treatment. This ([slides](https://docs.google.com/presentation/d/1AjkxXtCp9SMIkuAXmn41iSpt4BG7fPtzK42nxXQti54/edit?usp=sharing)) presentation was used to explain code and findings.
+This project analyzes mental-health risk factors in the tech industry using survey data from Open Sourcing Mental Health ([OSMH](https://osmhhelp.org/research.html)). Here, I built machine-learning models to predict whether an individual is likely to seek mental-health treatment, to explore predictive performance, fairness across age groups, and bias mitigation techniques. This allows workplaces to understand mental-health risks and how different workplace factors affect well-being, adjusting policies for better awareness and accessibility to treatment. This [Slides](https://docs.google.com/presentation/d/1AjkxXtCp9SMIkuAXmn41iSpt4BG7fPtzK42nxXQti54/edit?usp=sharing) presentation was used to explain code and findings.
 
 ## Files
 - ```r_code```: Includes R script for model building and data visualizations.
